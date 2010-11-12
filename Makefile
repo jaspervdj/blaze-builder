@@ -6,8 +6,10 @@
 ## Config
 #########
 
-GHC = ghc-6.12.3
-# GHC = ghc-7.0.0.20100924
+GHC6 = ghc-6.12.3
+GHC7 = ghc-7.0.0.20100924
+
+GHC = $(GHC6)
 
 GHCI = ghci-6.12.3
 
@@ -66,6 +68,14 @@ bench-string-and-text:
 bench-compression:
 	$(GHC) --make -O2 -fforce-recomp -ibenchmarks -main-is Compression Compression
 	./benchmarks/Compression --resamples 10000
+
+# core after rule applications for fromWriteList
+core-fromWriteList:
+	ghc-core -- --make -O2 -fforce-recomp Blaze/ByteString/Builder/Write.hs
+
+# check rule applications
+rules-fromWriteList:
+	$(GHC) --make -O2 -dppr-debug -ddump-rules -ddump-rule-firings -fforce-recomp Blaze/ByteString/Builder/Write.hs
 
 ##############################################################################
 ## Plots

@@ -18,14 +18,22 @@ module Blaze.ByteString.Builder.Write
     -- * Atomic writes to a buffer
       Write (..)
 
+    -- * Rule testing infrastructure
+    , test1
+    , test2
+    , test3
+    , test4
+
     -- * Creating builders from 'Write' abstractions
     , fromWrite
     , fromWriteSingleton
     , fromWrite1List
+    {-
     , fromWrite2List
     , fromWrite4List
     , fromWrite8List
     , fromWrite16List
+    -}
 
     ) where
 
@@ -99,6 +107,80 @@ instance Monoid Write where
         f2 (ptr `plusPtr` l1)
     {-# INLINE mappend #-}
 
+test1, test2, test3, test4 :: [Word8] -> Builder
+test1 xs = mconcat (map (fromWriteSingleton writeWord8) xs)
+test2 = mconcat . map (fromWriteSingleton writeWord8)
+test3 = mconcat . map (\x -> fromWrite (writeWord8 x))
+test4 = mconcat . map fromWord8
+
+{-# RULES
+  "Builder - mconcat/map_eta"
+      forall (f :: a -> Builder).
+      mconcat . map f = \xs -> mconcat (map f xs)
+ #-}
+
+
+{-# RULES
+  "Builder - mconcat/map/fromWrite"
+      forall (xs :: [a]) (w :: a -> Write).  
+      mconcat (map (\x -> fromWrite (w x)) xs) = fromWrite1List w xs
+ #-}
+
+
+{-# RULES
+  "Builder - mconcat/map/fromWriteSingleton"
+      forall (xs :: [a]) (w :: a -> Write).  
+      mconcat (map (fromWriteSingleton w) xs) = fromWrite1List w xs
+ #-}
+
+{- RULES
+  "foldr/fromWriteSingleton"
+      forall (w :: a -> Write).  
+      foldr (\k mapFB (.) (fromWriteSingleton w)) id = fromWrite1List w
+ -}
+
+{-
+                   @ base:GHC.Word.Word8{tc 32U}
+                   @ b1{tv a2Sz} [tv]
+                   (base:GHC.Base.mapFB{v rmH} [gid]
+                      @ <nt>main:Blaze.ByteString.Builder.Internal.Builder{tc ruG}
+                      @ b1{tv a2Sz} [tv]
+                      @ base:GHC.Word.Word8{tc 32U}
+                      c{v a2SA} [lid]
+                      (a_s2PC{v} [lid]
+                       `cast` (base:GHC.Word.Word8{tc 32U}
+                               -> ghc-prim:GHC.Prim.trans{(w) tc 34y}
+                                    (main:Blaze.ByteString.Builder.Internal.BuildStep{tc ruw}
+                                     -> base:GHC.Ptr.Ptr{tc 33A} base:GHC.Word.Word8{tc 32U}
+                                     -> base:GHC.Ptr.Ptr{tc 33A} base:GHC.Word.Word8{tc 32U}
+                                     -> ghc-prim:GHC.Prim.sym{(w) tc 34v}
+                                          (ghc-prim:GHC.Types.NTCo:IO{tc rdk}
+                                             main:Blaze.ByteString.Builder.Internal.BuildSignal{tc ruy}))
+                                    (ghc-prim:GHC.Prim.sym{(w) tc 34v}
+                                       main:Blaze.ByteString.Builder.Internal.NTCo:Builder{tc rGH})
+                               :: <pred>(base:GHC.Word.Word8{tc 32U}
+                                         -> main:Blaze.ByteString.Builder.Internal.BuildStep{tc ruw}
+                                         -> base:GHC.Ptr.Ptr{tc 33A} base:GHC.Word.Word8{tc 32U}
+                                         -> base:GHC.Ptr.Ptr{tc 33A} base:GHC.Word.Word8{tc 32U}
+                                         -> ghc-prim:GHC.Prim.State#{(w) tc 32q}
+                                              ghc-prim:GHC.Prim.RealWorld{(w) tc 31E}
+                                         -> (# ghc-prim:GHC.Prim.State#{(w) tc 32q}
+                                                 ghc-prim:GHC.Prim.RealWorld{(w) tc 31E},
+                                               main:Blaze.ByteString.Builder.Internal.BuildSignal{tc ruy} #))
+                                          ~
+                                        (base:GHC.Word.Word8{tc 32U}
+                                         -> <nt>main:Blaze.ByteString.Builder.Internal.Builder{tc ruG}))))
+-}
+
+{-
+"fold/build"  forall k z (g::forall b. (a->b->b) -> b -> b) .
+              foldr k z (build g) = g k z
+-}
+writeWord8 :: Word8 -> Write
+writeWord8 x = Write 1 (\pf -> poke pf x)
+
+fromWord8 :: Word8 -> Builder
+fromWord8 = fromWriteSingleton writeWord8
 
 -- Lifting Writes to Builders
 -----------------------------
@@ -144,7 +226,7 @@ fromWriteSingleton write = makeBuilder
           | otherwise               = return $ BufferFull size pf (step k)
           where
             Write size io = write x
-{-# INLINE fromWriteSingleton #-}
+{-# NOINLINE fromWriteSingleton #-}
 
 -- | Construct a 'Builder' writing a list of data one element at a time from a 'Write' abstraction.
 --
@@ -166,6 +248,7 @@ fromWrite1List write = makeBuilder
                 Write size io = write x'
 {-# INLINE fromWrite1List #-}
 
+{-
 -- | Construct a 'Builder' writing a list of data two elements at a time from a
 -- 'Write' abstraction.
 --
@@ -381,4 +464,4 @@ fromWrite16List write = makeBuilder
             go [] !pf = k pf pe0
 {-# INLINE fromWrite16List #-}
 
-
+-}
