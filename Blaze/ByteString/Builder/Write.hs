@@ -28,12 +28,10 @@ module Blaze.ByteString.Builder.Write
     , fromWrite
     , fromWriteSingleton
     , fromWrite1List
-    {-
     , fromWrite2List
     , fromWrite4List
     , fromWrite8List
     , fromWrite16List
-    -}
 
     ) where
 
@@ -133,6 +131,8 @@ test4 = mconcat . map fromWord8
       mconcat (map (fromWriteSingleton w) xs) = fromWrite1List w xs
  #-}
 
+
+
 {- RULES
   "foldr/fromWriteSingleton"
       forall (w :: a -> Write).  
@@ -214,9 +214,11 @@ fromWrite (Write size io) =
 -- | Create a 'Builder' constructor from a single 'Write' constructor.
 --
 fromWriteSingleton :: (a -> Write) -> a -> Builder   
-fromWriteSingleton write = makeBuilder
+fromWriteSingleton write = mkBuilder
   where 
-    makeBuilder x = Builder step
+    -- IMPORTANT: mkBuilder allows unsaturated calls to fromWriteSingleton to
+    -- be inlined
+    mkBuilder x = Builder step
       where
         step k pf pe
           | pf `plusPtr` size <= pe = do
@@ -228,27 +230,26 @@ fromWriteSingleton write = makeBuilder
             Write size io = write x
 {-# NOINLINE fromWriteSingleton #-}
 
--- | Construct a 'Builder' writing a list of data one element at a time from a 'Write' abstraction.
+-- | Construct a 'Builder' that writes a list of data.
 --
 fromWrite1List :: (a -> Write) -> [a] -> Builder
-fromWrite1List write = makeBuilder
+fromWrite1List write = mkBuilder
   where
-    makeBuilder []  = mempty
-    makeBuilder xs0 = Builder $ step xs0
+    -- IMPORTANT: mkBuilder allows unsaturated calls to fromWrite1List to be
+    -- inlined
+    mkBuilder xs = Builder $ step xs
+    step xs1 k pf0 pe0 = go xs1 pf0
       where
-        step xs1 k pf0 pe0 = go xs1 pf0
+        go []          !pf = k pf pe0
+        go xs@(x':xs') !pf
+          | pf `plusPtr` size <= pe0  = do
+              io pf
+              go xs' (pf `plusPtr` size)
+          | otherwise = do return $ BufferFull size pf (step xs k)
           where
-            go []          !pf = k pf pe0
-            go xs@(x':xs') !pf
-              | pf `plusPtr` size <= pe0  = do
-                  io pf
-                  go xs' (pf `plusPtr` size)
-              | otherwise = do return $ BufferFull size pf (step xs k)
-              where
-                Write size io = write x'
+            Write size io = write x'
 {-# INLINE fromWrite1List #-}
 
-{-
 -- | Construct a 'Builder' writing a list of data two elements at a time from a
 -- 'Write' abstraction.
 --
@@ -464,4 +465,3 @@ fromWrite16List write = makeBuilder
             go [] !pf = k pf pe0
 {-# INLINE fromWrite16List #-}
 
--}
