@@ -33,6 +33,7 @@ import qualified Blaze.ByteString.Builder.Char.Utf8 as BB
 
 main :: IO ()
 main = defaultMain 
+    {-
     [ bench "S.pack: [Word8] -> S.ByteString" $ 
         whnf (S.pack) word8s
 
@@ -44,16 +45,17 @@ main = defaultMain
 
     , bench "mconcat . map fromByte: [Word8] -> Builder -> L.ByteString" $ 
         whnf benchMConcatWord8s word8s
-    , bench "fromWrite1List: [Word8] -> Builder -> L.ByteString" $ 
-        whnf bench1Word8s word8s
+    -}
+    [ bench "fromWrite1List: [Word8] -> Builder -> L.ByteString" $ 
+        whnf (bench1Word8s . word8s) n
     , bench "fromWrite2List: [Word8] -> Builder -> L.ByteString" $ 
-        whnf bench2Word8s word8s
+        whnf (bench2Word8s . word8s) n
     , bench "fromWrite4List: [Word8] -> Builder -> L.ByteString" $ 
-        whnf bench4Word8s word8s
+        whnf (bench4Word8s . word8s) n
     , bench "fromWrite8List: [Word8] -> Builder -> L.ByteString" $ 
-        whnf bench8Word8s word8s
+        whnf (bench8Word8s . word8s) n
     , bench "fromWrite16List: [Word8] -> Builder -> L.ByteString" $ 
-        whnf bench16Word8s word8s
+        whnf (bench16Word8s . word8s) n
 
     , bench "mconcat . map fromByte: [Char] -> Builder -> L.ByteString" $ 
         whnf benchMConcatChars chars
@@ -84,16 +86,16 @@ main = defaultMain
   where
     n = 100000
 
-    word8s :: [Word8]
-    word8s = take n $ map fromIntegral $ [(1::Int)..]
-    {-# NOINLINE word8s #-}
+    word8s :: Int -> [Word8]
+    word8s n = take n $ map fromIntegral $ [(1::Int)..]
+    {-# INLINE word8s #-}
 
     word32s :: [Word32]
     word32s = take n $ [1..]
     {-# NOINLINE word32s #-}
 
     chars :: String
-    chars = take n $ map (chr . fromIntegral) $ word8s
+    chars = map (chr . fromIntegral) $ word8s n
     {-# NOINLINE chars #-}
 
 -- Char
@@ -155,4 +157,11 @@ bench8Word32s = L.length . BB.toLazyByteString . BB.fromWrite8List BB.writeWord3
 
 bench16Word32s :: [Word32] -> Int64
 bench16Word32s = L.length . BB.toLazyByteString . BB.fromWrite16List BB.writeWord32host
+
+
+------------------------------------------------------------------------------
+-- Word8 fully inlined
+------------------------------------------------------------------------------
+
+
 
