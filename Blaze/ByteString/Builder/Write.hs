@@ -111,71 +111,7 @@ test2 = mconcat . map (fromWriteSingleton writeWord8)
 test3 = mconcat . map (\x -> fromWrite (writeWord8 x))
 test4 = mconcat . map fromWord8
 
-{-# RULES
-  "Builder - mconcat/map_eta"
-      forall (f :: a -> Builder).
-      mconcat . map f = \xs -> mconcat (map f xs)
- #-}
 
-
-{-# RULES
-  "Builder - mconcat/map/fromWrite"
-      forall (xs :: [a]) (w :: a -> Write).  
-      mconcat (map (\x -> fromWrite (w x)) xs) = fromWrite1List w xs
- #-}
-
-
-{-# RULES
-  "Builder - mconcat/map/fromWriteSingleton"
-      forall (xs :: [a]) (w :: a -> Write).  
-      mconcat (map (fromWriteSingleton w) xs) = fromWrite1List w xs
- #-}
-
-
-
-{- RULES
-  "foldr/fromWriteSingleton"
-      forall (w :: a -> Write).  
-      foldr (\k mapFB (.) (fromWriteSingleton w)) id = fromWrite1List w
- -}
-
-{-
-                   @ base:GHC.Word.Word8{tc 32U}
-                   @ b1{tv a2Sz} [tv]
-                   (base:GHC.Base.mapFB{v rmH} [gid]
-                      @ <nt>main:Blaze.ByteString.Builder.Internal.Builder{tc ruG}
-                      @ b1{tv a2Sz} [tv]
-                      @ base:GHC.Word.Word8{tc 32U}
-                      c{v a2SA} [lid]
-                      (a_s2PC{v} [lid]
-                       `cast` (base:GHC.Word.Word8{tc 32U}
-                               -> ghc-prim:GHC.Prim.trans{(w) tc 34y}
-                                    (main:Blaze.ByteString.Builder.Internal.BuildStep{tc ruw}
-                                     -> base:GHC.Ptr.Ptr{tc 33A} base:GHC.Word.Word8{tc 32U}
-                                     -> base:GHC.Ptr.Ptr{tc 33A} base:GHC.Word.Word8{tc 32U}
-                                     -> ghc-prim:GHC.Prim.sym{(w) tc 34v}
-                                          (ghc-prim:GHC.Types.NTCo:IO{tc rdk}
-                                             main:Blaze.ByteString.Builder.Internal.BuildSignal{tc ruy}))
-                                    (ghc-prim:GHC.Prim.sym{(w) tc 34v}
-                                       main:Blaze.ByteString.Builder.Internal.NTCo:Builder{tc rGH})
-                               :: <pred>(base:GHC.Word.Word8{tc 32U}
-                                         -> main:Blaze.ByteString.Builder.Internal.BuildStep{tc ruw}
-                                         -> base:GHC.Ptr.Ptr{tc 33A} base:GHC.Word.Word8{tc 32U}
-                                         -> base:GHC.Ptr.Ptr{tc 33A} base:GHC.Word.Word8{tc 32U}
-                                         -> ghc-prim:GHC.Prim.State#{(w) tc 32q}
-                                              ghc-prim:GHC.Prim.RealWorld{(w) tc 31E}
-                                         -> (# ghc-prim:GHC.Prim.State#{(w) tc 32q}
-                                                 ghc-prim:GHC.Prim.RealWorld{(w) tc 31E},
-                                               main:Blaze.ByteString.Builder.Internal.BuildSignal{tc ruy} #))
-                                          ~
-                                        (base:GHC.Word.Word8{tc 32U}
-                                         -> <nt>main:Blaze.ByteString.Builder.Internal.Builder{tc ruG}))))
--}
-
-{-
-"fold/build"  forall k z (g::forall b. (a->b->b) -> b -> b) .
-              foldr k z (build g) = g k z
--}
 writeWord8 :: Word8 -> Write
 writeWord8 x = Write 1 (\pf -> poke pf x)
 
@@ -249,6 +185,23 @@ fromWrite1List write = mkBuilder
           where
             Write size io = write x'
 {-# INLINE fromWrite1List #-}
+
+-- Rules to convert declarative use of builders constructed from writes to fast
+-- loops over the involved lists.
+
+{-# RULES
+  "Builder: mconcat/map_eta"
+      forall (f :: a -> Builder).
+      mconcat . map f = \xs -> mconcat (map f xs) ;
+
+  "Builder: mconcat/map/fromWrite"
+      forall (xs :: [a]) (w :: a -> Write).  
+      mconcat (map (\x -> fromWrite (w x)) xs) = fromWrite1List w xs;
+
+  "Builder: mconcat/map/fromWriteSingleton"
+      forall (xs :: [a]) (w :: a -> Write).  
+      mconcat (map (fromWriteSingleton w) xs) = fromWrite1List w xs
+ #-}
 
 -- | Construct a 'Builder' writing a list of data two elements at a time from a
 -- 'Write' abstraction.
